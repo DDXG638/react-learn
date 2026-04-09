@@ -1,0 +1,24 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+dist-ssr
+
+# Package manager
+pnpm-debug.log*
+yarn-debug.log*
+npm-debug.log*
+
+# Editor
+.vscode/*
+.idea
+*.sw?
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Lock files (optional, uncomment if you don't want to track pnpm-lock.yaml)
+# pnpm-lock.yaml
