@@ -1,0 +1,317 @@
+/* 主题变量 */
+:root {
+  --bg-primary: #f5f7fa;
+  --bg-secondary: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #666666;
+  --border-color: #e2e8f0;
+  --accent: #667eea;
+  --accent-light: rgba(102, 126, 234, 0.1);
+}
+
+.dark {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --text-primary: #eaeaea;
+  --text-secondary: #a0a0a0;
+  --border-color: #2d3748;
+  --accent: #764ba2;
+  --accent-light: rgba(118, 75, 162, 0.2);
+}
+
+/* 全局样式 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background 0.3s, color 0.3s;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+/* 登录面板 */
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.login-title {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.login-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 2rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 120px;
+}
+
+.btn-login:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px var(--accent-light);
+}
+
+.btn-login .btn-icon {
+  font-size: 2rem;
+}
+
+.btn-login .btn-role {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar-info {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.btn-theme {
+  padding: 0.5rem 1rem;
+  background: var(--accent-light);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-theme:hover {
+  background: var(--accent);
+  color: white;
+}
+
+/* 用户信息 */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-primary);
+  border-radius: 8px;
+}
+
+.user-info--guest {
+  color: var(--text-secondary);
+}
+
+.user-avatar {
+  font-size: 1.2rem;
+}
+
+.user-name {
+  font-weight: 500;
+}
+
+.user-role {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.current-path {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* 布局 */
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 60px);
+}
+
+.layout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-logout {
+  padding: 0.5rem 1rem;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-logout:hover {
+  background: #fecaca;
+}
+
+.layout-body {
+  display: flex;
+  flex: 1;
+}
+
+.layout-main {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+/* 菜单 */
+.menu {
+  width: 280px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  padding: 1rem 0;
+  overflow-y: auto;
+}
+
+.menu.context-menu {
+  width: 280px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  border-right: none;
+}
+
+.menu-title {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+}
+
+.menu-list {
+  padding: 0;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-radius: 4px;
+  margin: 0 0.5rem;
+}
+
+.menu-item:hover {
+  background: var(--accent-light);
+}
+
+.menu-icon {
+  font-size: 1.1rem;
+}
+
+.menu-label {
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.menu-arrow {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.submenu-children {
+  margin-left: 0.5rem;
+  border-left: 2px solid var(--border-color);
+  padding-left: 0.5rem;
+}
+
+.menu-tip {
+  padding: 1rem;
+  margin: 0.5rem;
+  background: var(--accent-light);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+/* 内容区域 */
+.content {
+  max-width: 800px;
+}
+
+.content h2 {
+  margin-top: 0;
+  color: var(--text-primary);
+}
+
+.content ul {
+  line-height: 1.8;
+}
+
+.demo-info {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.demo-info h3 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+.demo-section {
+  padding: 1rem;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.demo-section h4 {
+  margin: 0 0 0.5rem;
+  color: var(--text-primary);
+}
+
+.demo-section p {
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
