@@ -138,6 +138,96 @@ const handleAdd = useCallback((product) => {
 - 函数作为 props 传递给 memo 化的子组件
 - 函数被 useEffect 依赖（避免 Effect 频繁触发）
 
+### Q1.2: 过度使用 memo/useMemo/useCallback 会有性能问题吗？
+
+#### 过度优化的代价
+
+| 操作 | 成本 |
+|------|------|
+| props 浅比较 | O(props 数量) |
+| 组件渲染 | O(DOM 节点数) |
+| memo 比较通过，跳过渲染 | O(1) |
+
+**如果 props 包含对象/数组/函数（引用每次都变），memo 的比较就会每次都失败：**
+
+```tsx
+// ❌ 过度优化的问题：props 每次都是新对象
+const Parent = () => {
+  const [count, setCount] = useState(0);
+
+  return (
+    <MemoizedChild
+      style={{ color: 'red' }}     // 每次新对象，memo 比较失败
+      onClick={() => handleClick()} // 每次新函数，memo 比较失败
+    />
+  );
+};
+```
+
+#### 什么时候优化反而有害？
+
+| 场景 | 问题 |
+|------|------|
+| 组件渲染很快 | 比较成本 > 渲染成本，白优化 |
+| props 是新对象/数组/函数 | memo 比较每次都失败，优化无效 |
+| 依赖数组复杂 | 比较依赖的成本可能很高 |
+| 组件不经常更新 | 优化带来的收益很小 |
+
+#### 什么时候优化有价值？
+
+| 场景 | 优化有价值 |
+|------|----------|
+| 组件渲染很昂贵（复杂计算，大列表） | ✅ |
+| props 是原始值（string/number/boolean） | ✅ |
+| 组件层级很深，高层状态频繁变化 | ✅ |
+| 组件被频繁挂载/卸载 | ✅ |
+
+#### 实践建议
+
+```tsx
+// ❌ 过度优化：props 每次都是新对象
+const Parent = () => {
+  return (
+    <MemoizedChild
+      style={{ color: 'red' }}     // 每次新对象
+      onClick={() => handleClick()} // 每次新函数
+    />
+  );
+};
+
+// ✅ 正确优化：保持 props 引用稳定
+const Parent = () => {
+  const style = useMemo(() => ({ color: 'red' }), []);
+  const handleClick = useCallback(() => doSomething(), []);
+
+  return <MemoizedChild style={style} onClick={handleClick} />;
+};
+
+// ❌ 不需要优化：组件本身就很快
+const Button = memo(function Button({ label, onClick }) {
+  return <button onClick={onClick}>{label}</button>;
+  // 可能 memo 成本比渲染还高
+});
+
+// ✅ 需要优化：组件复杂/层级深
+const HeavyTree = memo(function Tree({ data, onSelect }) {
+  // 复杂树形结构渲染
+});
+```
+
+#### 总结
+
+| Hook | 过度使用的问题 |
+|------|---------------|
+| `React.memo` | props 引用不稳定时，比较总是失败，额外成本 |
+| `useMemo` | 依赖比较 + 存储开销，可能比直接计算更慢 |
+| `useCallback` | 成本较低，但依赖数组复杂时也有问题 |
+
+**最佳实践：**
+1. 先让应用跑起来，再 profile 定位真正的性能瓶颈
+2. 优先优化算法和数据结构，而不是过早优化
+3. 只有当性能测试证明优化有价值时，才加 memo/useMemo/useCallback
+
 ### Q2: useRef 与 useState 区别？
 
 ```tsx
