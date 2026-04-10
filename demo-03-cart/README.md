@@ -379,6 +379,136 @@ return <Child style={style} />;
 
 **核心点：React.memo 只做浅比较，所以对象/数组/函数类型的 props 如果引用变了，即使值一样也会触发重渲染！**
 
+### Q2.2.1: useMemo 的实现原理？
+
+#### useMemo 的本质
+
+```tsx
+// useMemo 内部简化实现
+function useMemo<T>(compute: () => T, deps: any[]): T {
+  // 从 Fiber 的 memoizedState 获取上次的结果
+  const hook = fiber.memoizedState;
+
+  if (hook && compareDeps(hook.deps, deps)) {
+    // 依赖没变，返回缓存的结果
+    return hook.memoizedValue;
+  }
+
+  // 依赖变了，重新计算
+  const newValue = compute();
+  // 存储新的值和依赖
+  hook.memoizedValue = newValue;
+  hook.deps = deps;
+  return newValue;
+}
+```
+
+#### 工作原理图解
+
+```
+组件首次渲染：
+┌─────────────────────────────────────┐
+│ useMemo(() => expensiveCalc(), [a]) │
+│   ↓                                 │
+│ 执行 expensiveCalc()                 │
+│   ↓                                 │
+│ 结果存入 hook.memoizedState         │
+│   ↓                                 │
+│ hook.deps = [a]                    │
+└─────────────────────────────────────┘
+
+组件再次渲染（a 没变）：
+┌─────────────────────────────────────┐
+│ useMemo(() => expensiveCalc(), [a]) │
+│   ↓                                 │
+│ 取出 hook.deps = [a]               │
+│   ↓                                 │
+│ compare([a], [a]) → true           │
+│   ↓                                 │
+│ 直接返回缓存的 memoizedValue         │
+│ （不执行 expensiveCalc()）          │
+└─────────────────────────────────────┘
+
+组件再次渲染（a 变了）：
+┌─────────────────────────────────────┐
+│ useMemo(() => expensiveCalc(), [a]) │
+│   ↓                                 │
+│ 取出 hook.deps = [a]               │
+│   ↓                                 │
+│ compare([a], [aNew]) → false       │
+│   ↓                                 │
+│ 执行 expensiveCalc()                │
+│   ↓                                 │
+│ 更新 hook.memoizedValue            │
+│ 更新 hook.deps                      │
+└─────────────────────────────────────┘
+```
+
+#### 依赖比较策略
+
+```tsx
+// React 内部的比较函数
+function compareDeps(prevDeps, nextDeps) {
+  if (prevDeps.length !== nextDeps.length) return false;
+
+  for (let i = 0; i < prevDeps.length; i++) {
+    if (!Object.is(prevDeps[i], nextDeps[i])) {
+      return false; // 依赖变了
+    }
+  }
+  return true; // 依赖没变
+}
+```
+
+#### 关键点总结
+
+| 特性 | 说明 |
+|------|------|
+| 缓存位置 | Fiber 的 memoizedState |
+| 缓存条件 | 依赖数组每项都没变化 |
+| 比较方式 | `Object.is`（相当于 ===） |
+| 首次渲染 | 直接执行 compute 函数 |
+| 依赖没变 | 直接返回缓存值，不执行 compute |
+| 依赖变了 | 重新执行 compute，更新缓存 |
+
+#### 为什么需要依赖数组？
+
+```tsx
+// 没有依赖数组，useMemo 就没有意义
+const value = useMemo(() => compute());
+// 每次渲染都会执行 compute，因为没有 deps 可以比较
+
+// 有依赖数组，才知道什么时候该用缓存
+const value = useMemo(() => compute(), [dep]);
+// 只有当 dep 没变时，才返回缓存
+```
+
+#### useMemo vs useRef 的缓存对比
+
+```tsx
+// useRef：对象引用不变，current 可变
+const ref = useRef(0);
+ref.current = 5; // 修改 current
+// ref 对象本身不变（引用稳定）
+
+// useMemo：只有依赖没变时才缓存
+const value = useMemo(() => compute(), [dep]);
+// dep 没变 → 返回缓存的值
+// dep 变了 → 重新计算
+```
+
+#### 面试要点
+
+| 问题 | 答案 |
+|------|------|
+| 缓存存在哪？ | Fiber 的 memoizedState |
+| 怎么判断用缓存？ | 比较依赖数组（Object.is） |
+| 依赖变了怎么办？ | 重新执行 compute 函数 |
+| 依赖怎么比较？ | 使用 `Object.is`（相当于 ===） |
+| 首次渲染？ | 直接执行 compute 函数 |
+
+**核心点：useMemo 的核心思想是空间换时间，通过存储计算结果和依赖，在依赖没变时跳过重复计算。**
+
 ### Q2.3: 闭包陷阱（useEffect 中的问题）
 
 #### 什么是闭包？
