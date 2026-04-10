@@ -8,7 +8,7 @@ interface CartItemProps {
 }
 
 // 使用 memo 缓存组件，只有 item 或回调变化时才重新渲染
-const CartItemComponent = memo(function CartItemComponent({
+export const CartItem = memo(function CartItem({
   item,
   onUpdateQuantity,
   onRemove,
@@ -70,7 +70,3 @@ const CartItemComponent = memo(function CartItemComponent({
     </div>
   );
 });
-
-export function CartItem(props: CartItemProps) {
-  return <CartItemComponent {...props} />;
-}
