@@ -228,6 +228,157 @@ function Counter() {
 └─────────────────────────────────────────────────────┘
 ```
 
+### Q2.2: React.memo 如何判断 Props 变化？
+
+#### React.memo 的基本原理
+
+```tsx
+// React.memo 是一个高阶组件
+const MemoizedComponent = memo(function MyComponent(props) {
+  // ...
+});
+
+// 内部大概是：
+function memo(WrappedComponent) {
+  return function MemoizedComponent(props) {
+    // 存储上一次的 props
+    let prevProps = props;
+
+    return (
+      <WrappedComponent
+        {...props}
+        ref={ref}
+      />
+    );
+  };
+}
+```
+
+但实际上 React.memo 的比较发生在 **Fiber 协调阶段**，不是上面这种简单的闭包比较。
+
+#### Fiber 在 React.memo 中的作用
+
+```
+更新触发 → Fiber 协调 → diff 新旧 props → 决定是否重渲染
+```
+
+#### Fiber 节点存储的信息
+
+```tsx
+// 每个组件对应的 Fiber 节点大概包含
+{
+  // ...其他字段
+  memoizedProps: null,    // 上一次渲染的 props
+  pendingProps: null,     // 新的即将应用的 props
+  // ...
+}
+```
+
+#### 比较过程
+
+```tsx
+// 在 Fiber 协调过程中（beginWork 或 updateMemoComponent）
+function updateMemoComponent(fiber) {
+  const resolvedProps = fiber.pendingProps;
+
+  // 比较新旧 props
+  if (compare(fiber.memoizedProps, resolvedProps)) {
+    // props 没变，跳过渲染
+    return skipUpdateAndReuseFiber(fiber);
+  }
+
+  // props 变了，执行渲染
+  return renderWithNewProps(fiber);
+}
+```
+
+#### 比较策略：浅比较
+
+```tsx
+// React 内部的比较函数大概是这样
+function shallowEqual(objA, objB) {
+  // 特殊处理
+  if (objA === objB) return true;
+
+  // 数组或对象
+  if (objA && objB && typeof objA === 'object' && typeof objB === 'object') {
+    const keysA = Object.keys(objA);
+    const keysB = Object.keys(objB);
+
+    if (keysA.length !== keysB.length) return false;
+
+    // 浅比较每个属性
+    for (let key of keysA) {
+      if (objA[key] !== objB[key]) return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+```
+
+#### 自定义比较函数
+
+```tsx
+// 第二个参数是自定义比较函数
+const MemoizedButton = memo(Button, (prevProps, nextProps) => {
+  // 返回 true 表示 props 相等，跳过渲染
+  // 返回 false 表示 props 不等，执行渲染
+  return prevProps.onClick === nextProps.onClick;
+});
+```
+
+#### 图解整个流程
+
+```
+用户点击 → 触发状态更新
+    ↓
+React 创建新的 Fiber 树
+    ↓
+beginWork 遍历 Fiber
+    ↓
+遇到 memo 化组件：
+┌─────────────────────────────────────┐
+│ fiber.memoizedProps = {count: 1}   │  ← 上次 props
+│ fiber.pendingProps = {count: 2}    │  ← 新的 props
+│                                     │
+│ shallowEqual(prev, next)           │
+│   count: 1 !== 2 → return false    │
+│                                     │
+│ compare 返回 false                  │
+│   → 需要重渲染                       │
+└─────────────────────────────────────┘
+```
+
+#### 面试要点总结
+
+| 问题 | 答案 |
+|------|------|
+| 比较时机 | Fiber 协调阶段（beginWork） |
+| 比较什么 | `fiber.memoizedProps` vs `fiber.pendingProps` |
+| 比较策略 | 默认浅比较，可以自定义比较函数 |
+| 跳过后怎样 | 复用现有 Fiber，跳过 render 阶段 |
+
+#### 为什么是浅比较？
+
+```tsx
+// 这就是为什么对象 props 需要小心
+const Parent = () => {
+  const [count, setCount] = useState(0);
+
+  // ❌ 每次渲染都是新对象！
+  return <Child style={{ color: 'red' }} />;
+};
+
+// ✅ 使用 useMemo 保持对象引用
+const style = useMemo(() => ({ color: 'red' }), []);
+return <Child style={style} />;
+```
+
+**核心点：React.memo 只做浅比较，所以对象/数组/函数类型的 props 如果引用变了，即使值一样也会触发重渲染！**
+
 ### Q3: useReducer 何时比 useState 更合适？
 
 ```tsx
