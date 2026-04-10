@@ -54,6 +54,90 @@ useMemo → 缓存计算结果（依赖变化才重新计算）
 useCallback → 缓存函数引用（等价于 useMemo(() => fn, deps)）
 ```
 
+### Q1.1: useCallback 的真正作用是什么？
+
+#### 每次渲染都会创建新的回调函数吗？
+
+**是的。** 看这个组件：
+
+```tsx
+function ProductList({ products, onAddToCart }: Props) {
+  // 每次渲染都会创建新的函数实例
+  const handleAdd = (product: Product) => {
+    onAddToCart(product);
+  };
+
+  return products.map(p => <Item key={p.id} onAdd={handleAdd} />);
+}
+```
+
+每次 `ProductList` 重渲染，`handleAdd` 都是一个**全新的函数对象**。
+
+#### 会有内存泄露吗？
+
+**不会内存泄露。** JavaScript 有垃圾回收机制，当函数不再被引用时会被回收。
+
+#### 真正的问题是什么？
+
+**问题是"引用变化"导致的子组件重渲染，而不是内存泄露：**
+
+```tsx
+// 父组件
+function Parent() {
+  const [count, setCount] = useState(0);
+
+  // ❌ 每次渲染都创建新函数
+  const handleClick = () => {
+    console.log('clicked');
+  };
+
+  return (
+    <div>
+      <button onClick={() => setCount(c => c + 1)}>加一: {count}</button>
+      {/* memo 化的子组件 */}
+      <MemoizedChild onClick={handleClick} />
+    </div>
+  );
+}
+```
+
+| 操作 | 不使用 useCallback | 使用 useCallback |
+|------|-------------------|-----------------|
+| 点击按钮 | Parent 重渲染 | Parent 重渲染 |
+| handleClick | **新的函数引用** | 缓存的同一引用 |
+| MemoizedChild | **也会重渲染**（因为 props 引用变了） | **不会重渲染**（props 相同） |
+
+#### useCallback 解决的是什么？
+
+```tsx
+// ✅ 使用 useCallback 后，handleClick 引用稳定
+const handleClick = useCallback(() => {
+  console.log('clicked');
+}, []); // 依赖数组为空，函数引用永远不变
+
+// ✅ 或者有依赖的情况
+const handleAdd = useCallback((product) => {
+  onAddToCart(product);
+}, [onAddToCart]); // 只有 onAddToCart 变化时才创建新函数
+```
+
+#### 总结
+
+| 问题 | 原因 | 解决方案 |
+|------|------|---------|
+| 内存泄露 | ❌ 不会有，JS 有 GC | - |
+| 子组件不必要的重渲染 | props 引用每次都变 | useCallback + React.memo |
+| 闭包捕获过时值 | useCallback 依赖数组不对 | 正确设置依赖数组 |
+
+**什么时候不用 useCallback：**
+- 函数不会作为 props 传递
+- 子组件没有用 React.memo 优化
+- 函数内部没有闭包陷阱问题
+
+**什么时候用 useCallback：**
+- 函数作为 props 传递给 memo 化的子组件
+- 函数被 useEffect 依赖（避免 Effect 频繁触发）
+
 ### Q2: useRef 与 useState 区别？
 
 ```tsx
