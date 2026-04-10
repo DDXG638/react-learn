@@ -19,7 +19,7 @@
 ### 3. useRef - 持久化和 DOM 引用
 - DOM 引用
 - 持久化可变值（不同于 useState）
-- 避免闭包陷阱
+- 理解 useEffect 闭包捕获问题
 
 ### 4. useReducer - 复杂状态逻辑
 - 替代多个 useState
@@ -127,12 +127,12 @@ const handleAdd = useCallback((product) => {
 |------|------|---------|
 | 内存泄露 | ❌ 不会有，JS 有 GC | - |
 | 子组件不必要的重渲染 | props 引用每次都变 | useCallback + React.memo |
-| 闭包捕获过时值 | useCallback 依赖数组不对 | 正确设置依赖数组 |
+| 闭包捕获过时值（useEffect） | 闭包捕获创建时的值，定时器等场景会卡住 | 函数式更新 / useRef |
 
 **什么时候不用 useCallback：**
 - 函数不会作为 props 传递
 - 子组件没有用 React.memo 优化
-- 函数内部没有闭包陷阱问题
+- 没有在 useEffect 中使用闭包
 
 **什么时候用 useCallback：**
 - 函数作为 props 传递给 memo 化的子组件
@@ -378,6 +378,132 @@ return <Child style={style} />;
 ```
 
 **核心点：React.memo 只做浅比较，所以对象/数组/函数类型的 props 如果引用变了，即使值一样也会触发重渲染！**
+
+### Q2.3: 闭包陷阱（useEffect 中的问题）
+
+#### 什么是闭包？
+
+```tsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  // 这个函数形成了闭包
+  // 它"记住"了创建时的 count 值（0）
+  const handleClick = () => {
+    console.log(count); // 这里的 count 永远是创建时的值
+  };
+
+  return <button onClick={handleClick}>点击</button>;
+}
+```
+
+#### 普通函数 vs useEffect
+
+**普通函数：每次调用都创建新回调，读取最新值**
+
+```tsx
+function createCounter() {
+  let count = 0;
+
+  setInterval(() => {
+    console.log(count); // ✅ 每次都读取最新的 count
+    count++;
+  }, 1000);
+}
+
+createCounter(); // 正常工作：0, 1, 2, 3...
+```
+
+**React useEffect：回调只创建一次，闭包捕获的值永远不变**
+
+```tsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    // 这个回调只创建一次！
+    // 它捕获的 count 值永远是初始的 0
+    const timer = setInterval(() => {
+      console.log(count); // ❌ 永远打印 0
+      setCount(count + 1); // ❌ 永远 setCount(1)
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []); // 只执行一次
+
+  return <div>{count}</div>;
+}
+```
+
+#### 对比图解
+
+```
+普通函数：
+┌─────────────────────────────────────┐
+│ 每次 setInterval 触发               │
+│ → 执行回调函数                     │
+│ → 读取外部变量 count（当前值）      │
+│ → count++                          │
+└─────────────────────────────────────┘
+
+React useEffect：
+┌─────────────────────────────────────┐
+│ useEffect 执行（只执行一次）         │
+│ → 创建 setInterval 回调              │
+│ → 回调闭包捕获当时的 count=0         │
+│ → 回调永远记住 count=0               │
+│ （后续 count 变化，但回调不知道）     │
+└─────────────────────────────────────┘
+```
+
+#### 解决方案
+
+**方案1：函数式更新（推荐）**
+
+```tsx
+useEffect(() => {
+  const timer = setInterval(() => {
+    // ✅ 不依赖外部 count 值
+    setCount(prev => prev + 1);
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, []);
+```
+
+**方案2：useRef 同步最新值**
+
+```tsx
+function Counter() {
+  const [count, setCount] = useState(0);
+  const countRef = useRef(count);
+
+  // 同步 ref，保持最新值
+  countRef.current = count;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      console.log(countRef.current); // ✅ 永远是最新的值
+      setCount(countRef.current + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return <div>{count}</div>;
+}
+```
+
+#### 面试要点
+
+| 问题 | 答案 |
+|------|------|
+| 闭包陷阱是 React 特有的吗？ | ❌ 不是，是 JavaScript 闭包特性 |
+| 为什么普通函数没问题？ | 因为每次调用创建新回调，读取最新值 |
+| useEffect 为什么会卡住？ | useEffect 回调只创建一次，闭包捕获的值永远不变 |
+| 如何解决？ | 函数式更新 / useRef 同步最新值 |
+
+**核心点：闭包陷阱不是 React 的 bug，而是 useEffect 的设计特点。理解它才能避免在定时器、异步操作中捕获过时的状态值。**
 
 ### Q3: useReducer 何时比 useState 更合适？
 
