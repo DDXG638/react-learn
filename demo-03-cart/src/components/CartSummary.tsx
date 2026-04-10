@@ -6,8 +6,7 @@ interface CartSummaryProps {
   onClearCart: () => void;
 }
 
-// 使用 memo 缓存组件
-const CartSummaryComponent = memo(function CartSummaryComponent({
+function CartSummaryComponent({
   cart,
   onClearCart,
 }: CartSummaryProps) {
@@ -85,6 +84,6 @@ const CartSummaryComponent = memo(function CartSummaryComponent({
       </button>
     </div>
   );
-});
+}
 
 export const CartSummary = memo(CartSummaryComponent);
