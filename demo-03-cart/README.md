@@ -637,9 +637,93 @@ function Counter() {
 
 ### Q3: useReducer 何时比 useState 更合适？
 
+#### useReducer 的本质
+
+`useReducer` 是 `useState` 的替代方案，核心思想是**将状态更新逻辑集中管理**。
+
+```tsx
+// useState：状态和更新逻辑分散
+const [state, setState] = useState(initial);
+
+// useReducer：状态和更新逻辑集中
+const [state, dispatch] = useReducer(reducer, initial);
+```
+
+#### 内部简化实现
+
+```tsx
+// useReducer 内部简化实现
+function useReducer(reducer, initialState) {
+  // 复用 useState 的机制
+  const [state, setState] = useState(initialState);
+
+  // 派发 action 的函数
+  const dispatch = (action) => {
+    // 调用 reducer 计算新状态
+    const newState = reducer(state, action);
+    // 使用 setState 更新
+    setState(newState);
+  };
+
+  return [state, dispatch];
+}
+```
+
+#### 工作流程图解
+
+```
+用户点击"添加商品"：
+    ↓
+dispatch({ type: 'ADD_ITEM', product })
+    ↓
+reducer(currentState, action)  ← 执行 reducer 函数
+    ↓
+newState = { ...currentState, items: [...items, newItem] }
+    ↓
+setState(newState)  ← 触发重渲染
+    ↓
+组件重新渲染，使用新状态
+```
+
+#### Reducer 函数模式
+
+```tsx
+// reducer 是一个纯函数：接收当前状态和 action，返回新状态
+function reducer(state, action) {
+  switch (action.type) {
+    case 'ADD_ITEM':
+      return {
+        ...state,
+        items: [...state.items, action.product]
+      };
+
+    case 'REMOVE_ITEM':
+      return {
+        ...state,
+        items: state.items.filter(i => i.id !== action.productId)
+      };
+
+    case 'UPDATE_QUANTITY':
+      return {
+        ...state,
+        items: state.items.map(item =>
+          item.id === action.productId
+            ? { ...item, quantity: action.quantity }
+            : item
+        )
+      };
+
+    default:
+      return state; // 未知 action，返回原状态
+  }
+}
+```
+
+#### useReducer vs useState 场景对比
+
 ```tsx
 // 场景1：相关状态一起管理
-// ❌ useState 方式 - 状态分散
+// ❌ useState 方式 - 状态分散，容易不同步
 const [firstName, setFirstName] = useState('');
 const [lastName, setLastName] = useState('');
 const [address, setAddress] = useState('');
@@ -648,7 +732,7 @@ const [address, setAddress] = useState('');
 const [form, dispatch] = useReducer(formReducer, initialForm);
 
 // 场景2：状态转换复杂
-// ❌ useState 方式
+// ❌ useState 方式 - 逻辑分散
 const [step, setStep] = useState(1);
 const next = () => {
   if (step === 1) setStep(2);
@@ -656,10 +740,32 @@ const next = () => {
   else setStep(1);
 };
 
-// ✅ useReducer 方式
+// ✅ useReducer 方式 - 逻辑集中
 const [step, dispatch] = useReducer((s, a) => (s % 3) + 1, 1);
 const next = () => dispatch('NEXT');
 ```
+
+#### useReducer vs Redux
+
+| 特性 | useReducer | Redux |
+|------|-----------|-------|
+| 状态管理 | 组件本地 | 全局应用 |
+| 中间件 | ❌ 不支持 | ✅ 支持 |
+| DevTools | ❌ 不支持 | ✅ 支持 |
+| 适用场景 | 组件内复杂状态 | 跨组件共享状态 |
+| 学习成本 | 低 | 高 |
+
+#### 面试要点
+
+| 问题 | 答案 |
+|------|------|
+| 本质是什么？ | useState 的替代方案 |
+| reducer 是什么？ | 纯函数，接收 state 和 action，返回新状态 |
+| 为什么适合复杂状态？ | 逻辑内聚，易于预测和测试 |
+| dispatch 做了什么？ | 调用 reducer 计算新状态，触发 setState |
+| 和 Redux 的区别？ | 本地状态 vs 全局状态 |
+
+**核心点：useReducer 将"做什么"（action）和"怎么做"（reducer）分离，让状态更新逻辑可预测、可测试。**
 
 ## 项目结构
 
