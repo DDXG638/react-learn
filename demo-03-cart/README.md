@@ -155,6 +155,79 @@ const inputRef = useRef<HTMLInputElement>(); // DOM 引用
 const cacheRef = useRef<Map<string, any>>(); // 缓存（跨渲染持久）
 ```
 
+### Q2.1: useRef 持久化原理？
+
+#### useRef 的本质
+
+```tsx
+// useRef 内部简化实现
+function useRef<T>(initialValue: T): { current: T } {
+  // 实际上是这样一个结构
+  return { current: initialValue };
+}
+```
+
+**useRef 返回一个普通的 JavaScript 对象 `{ current: initialValue }`，React 保证这个对象在组件整个生命周期内保持同一个引用。**
+
+#### 工作原理图解
+
+```
+组件首次渲染：
+┌─────────────────────────────────────┐
+│ useRef(0)                           │
+│   ↓                                 │
+│ { current: 0 }  ← 创建新对象        │
+│   ↓                                 │
+│ 存入 Fiber 的 memoizedState         │
+└─────────────────────────────────────┘
+
+组件再次渲染：
+┌─────────────────────────────────────┐
+│ useRef(0)                           │
+│   ↓                                 │
+│ { current: 0 }  ← 从 memoizedState  │
+│   ↓          获取同一个对象！        │
+│ React 检测到 ref 已存在              │
+│ 直接返回现有 ref，忽略 initialValue  │
+└─────────────────────────────────────┘
+```
+
+#### 为什么修改 current 不触发重渲染？
+
+```tsx
+function Counter() {
+  const countRef = useRef(0);
+
+  const handleClick = () => {
+    countRef.current += 1;  // 修改 current
+    // 注意：这里没有调用 setState，不会触发重渲染
+    console.log(countRef.current); // 可以读取最新值
+  };
+
+  return <button onClick={handleClick}>点击</button>;
+}
+```
+
+| 操作 | 触发重渲染？ | 原因 |
+|------|-------------|------|
+| `countRef.current = 5` | ❌ | 没有调用 setState，React 不知道状态变了 |
+| `setCount(5)` | ✅ | 触发 React 状态更新流程 |
+
+#### 关键点总结
+
+```
+┌─────────────────────────────────────────────────────┐
+│  useRef 返回的对象在整个生命周期内引用不变            │
+│                                                     │
+│  fiber.memoizedState ──────────────────────────┐   │
+│      ↓                                         │   │
+│  { current: initialValue }  ← 同一个对象        │   │
+│      ↓                                         │   │
+│  修改 .current 不触发重渲染                     │   │
+│  因为 React 的渲染依赖 setState 触发             │   │
+└─────────────────────────────────────────────────────┘
+```
+
 ### Q3: useReducer 何时比 useState 更合适？
 
 ```tsx
