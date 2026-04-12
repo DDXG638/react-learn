@@ -737,6 +737,233 @@ function handleClick() {
 2. **批量更新标志**：`isBatching` 标志，在事件处理器中自动开启
 3. **微任务合并**：使用 `unstable_ImmediatePriority` 调度，确保在当前事件循环结束前合并
 
+### Update、Fiber.updateQueue 与 MessageChannel
+
+#### 完整数据流
+
+```
+用户操作                    React 内部                              DOM
+   │                           │                                     │
+   ▼                           ▼                                     │
+setState() 调用                │                                     │
+   │                           ▼                                     │
+   │                    ┌─────────────────┐                         │
+   │                    │ 创建 Update 对象 │                        │
+   │                    │  加入 updateQueue │                        │
+   │                    └─────────────────┘                         │
+   │                           │                                     │
+   │                           ▼                                     │
+   │                    ┌─────────────────┐                         │
+   │                    │ MessageChannel  │  ← 调度器                │
+   │                    │ 通知下一帧处理  │                          │
+   │                    └─────────────────┘                         │
+   │                           │                                     │
+   │                           ▼                                     │
+   │                    ┌─────────────────┐                         │
+   │                    │ 批量执行        │                         │
+   │                    │ render 阶段     │                         │
+   │                    │ commit 阶段     │                         │
+   │                    └─────────────────┘                         │
+   │                           │                                     │
+   ▼                           ▼                                     │
+真实 DOM 更新 ◄─────────────────────────────────────┘
+```
+
+#### 1. Update 对象
+
+```typescript
+interface Update {
+  lane: Lanes;              // 优先级 (SyncLane / DefaultLane / ...)
+  payload: any;             // setState 的值或 reducer
+  callback: Function | null; // setState 回调（第二个参数）
+  next: Update | null;      // 链表指针，指向下一个 Update
+}
+```
+
+**Update 创建过程**：
+
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+
+  const handleClick = () => {
+    // 点击触发 setCount(1)
+    // React 内部创建 Update:
+    setCount(1);
+  };
+}
+
+// 等价于内部:
+const update = {
+  lane: SyncLane,              // 点击 → 同步优先级
+  payload: 1,                  // setState 的参数
+  callback: null,             // 没有回调
+  next: null
+};
+```
+
+#### 2. Fiber.updateQueue（环形链表）
+
+```typescript
+interface Fiber {
+  updateQueue: {
+    firstUpdate: Update | null;  // 链表头
+    lastUpdate: Update | null;   // 链表尾
+  };
+}
+```
+
+**updateQueue 是环形链表**：
+
+```
+updateQueue 结构：
+
+     ┌──────────────────────────────────────┐
+     │                                      │
+     ▼                                      │
+┌─────────┐    ┌─────────┐    ┌─────────┐  │
+│ Update1 │───►│ Update2 │───►│ Update3 │──┘
+└─────────┘    └─────────┘    └─────────┘
+    ▲
+    │
+ firstUpdate              lastUpdate
+```
+
+**新 Update 加入队列**：
+
+```typescript
+function enqueueUpdate(fiber, update) {
+  const queue = fiber.updateQueue;
+
+  if (queue.lastUpdate === null) {
+    // 队列为空，首尾都指向新 Update
+    queue.firstUpdate = queue.lastUpdate = update;
+  } else {
+    // 插入到链表尾部
+    queue.lastUpdate.next = update;
+    queue.lastUpdate = update;
+  }
+}
+```
+
+#### 3. MessageChannel 调度
+
+```typescript
+// React 18 的调度实现（简化）
+const channel = new MessageChannel();
+let scheduledCallback = null;
+
+// 端口1 接收消息
+channel.port1.onmessage = () => {
+  if (scheduledCallback) {
+    const callback = scheduledCallback;
+    scheduledCallback = null;
+    callback();  // 执行批量更新
+  }
+};
+
+// 调度新任务
+function scheduleCallback(callback) {
+  scheduledCallback = callback;
+  channel.port2.postMessage(null);  // 通知端口1
+}
+```
+
+#### 完整流程详解
+
+```
+时刻 T0: 用户点击按钮
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│ 1. setCount(1) 被调用                              │
+│                                                     │
+│ 2. 创建 Update 对象:                                │
+│    update = {                                      │
+│      lane: SyncLane,                               │
+│      payload: 1,                                   │
+│      callback: null,                                │
+│      next: null                                    │
+│    }                                               │
+│                                                     │
+│ 3. Update 加入 Fiber.updateQueue:                   │
+│    updateQueue.firstUpdate = update                 │
+│    updateQueue.lastUpdate = update                  │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│ 4. React 检查是否在批处理模式                        │
+│                                                     │
+│    在事件处理器中 → isBatching = true                │
+│    → 不立即渲染，只标记 dirty                        │
+│    → 调用 scheduleCallback()                        │
+│    → channel.port2.postMessage(null)               │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│ 5. 事件处理器结束                                   │
+│                                                     │
+│    isBatching = false                              │
+│    port1.onmessage 触发（下一帧）                   │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│ 6. 批量渲染开始 (render 阶段)                      │
+│                                                     │
+│    遍历所有 dirty fibers:                           │
+│    ┌─────────────────────────────────────────────┐│
+│    │ beginWork(fiber):                           ││
+│    │   - 对比 newState vs oldState (通过 Update) ││
+│    │   - 计算新的 state                           ││
+│    │   - 收集 DOM 变更                           ││
+│    │                                             ││
+│    │ completeWork(fiber):                        ││
+│    │   - 构建 effectList                         ││
+│    └─────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│ 7. commit 阶段                                      │
+│                                                     │
+│    遍历 effectList，一次性应用所有 DOM 变更          │
+└─────────────────────────────────────────────────────┘
+```
+
+#### 三者关系总结
+
+```
+┌─────────────────────────────────────────────────────┐
+│                      三者关系                         │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Update 对象                                        │
+│    - 每次 setState 创建一个                         │
+│    - 记录新 state 值和优先级                        │
+│    │                                               │
+│    ▼                                               │
+│  Fiber.updateQueue                                  │
+│    - 存放组件的所有待处理 Update                     │
+│    - 环形链表结构                                   │
+│    │                                               │
+│    ▼                                               │
+│  MessageChannel                                     │
+│    - 负责调度，告诉 React "有新更新，下一帧处理"      │
+│    - 实现异步批量更新                               │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+| 问题 | 答案 |
+| --- | --- |
+| Update 是什么？ | 每次 setState 创建的对象，记录新 state 和优先级 |
+| updateQueue 是什么？ | 环形链表，存放组件所有待处理的 Update |
+| MessageChannel 干嘛用？ | 调度器，异步通知 React 有新更新需要处理 |
+| 三者怎么配合？ | setState → 创建 Update → 加入 updateQueue → MessageChannel 调度 → 批量渲染 |
+
 ---
 
 ## 合成事件
