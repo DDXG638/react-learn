@@ -989,6 +989,84 @@ function Button({ onClick }) {
 }
 ```
 
+### 为什么要用合成事件？
+
+#### 1. 跨浏览器一致性
+
+```jsx
+// 原生事件，不同浏览器有差异
+element.addEventListener('input', (e) => {
+  // e.keyCode 旧浏览器不支持
+});
+
+// React 合成事件，统一了所有浏览器的 event 对象
+<input onChange={(e) => {
+  // e.target.value 所有浏览器一致
+}} />
+```
+
+#### 2. 事件委托减少监听器数量
+
+```
+原生事件：每个元素单独绑定
+┌─────────────────────────────────────┐
+│ <ul>
+│   <li onClick={handleClick}>A</li>  │ → 10000 个事件监听器
+│   <li onClick={handleClick}>B</li>  │
+│   ... 10000 个 li                   │
+└─────────────────────────────────────┘
+
+React 合成事件：委托到 root，只需 1 个根监听器
+┌─────────────────────────────────────┐
+│ document (一个根监听器)              │
+│   └─ 事件分发：onClick → li        │
+└─────────────────────────────────────┘
+```
+
+#### 3. 支持微前端隔离（React 17+）
+
+```
+React 16: 事件委托到 document
+┌─────────────────────────────────────┐
+│ document                           │
+│   ├─ click handlers (所有按钮)      │
+│   ├─ change handlers (所有输入)    │
+│   └─ ... (非常多的事件监听器)        │
+└─────────────────────────────────────┘
+
+React 17+: 事件委托到 root
+┌─────────────────────────────────────┐
+│ #root                             │
+│   ├─ click handlers               │
+│   └─ change handlers             │
+└─────────────────────────────────────┘
+→ 支持多个 React 版本共存
+```
+
+#### 4. 自动绑定 this
+
+```jsx
+// 原生事件，需要手动绑定
+class Button extends React.Component {
+  handleClick(e) {
+    console.log(this); // undefined ❌
+  }
+  render() {
+    return <button onClick={this.handleClick}>点击</button>;
+  }
+}
+
+// 合成事件，自动绑定
+class Button extends React.Component {
+  handleClick = (e) => {
+    console.log(this); // this 指向组件实例 ✓
+  }
+  render() {
+    return <button onClick={this.handleClick}>点击</button>;
+  }
+}
+```
+
 ### 事件池机制
 
 React 17 之前，事件对象被复用（对象池）：
@@ -1007,16 +1085,10 @@ function handleClick(e) {
 
 ### 事件委托
 
-**React 16**：
-
 ```
-事件 → document → React 事件代理 → 分发
-```
+React 16: 事件 → document → React 事件代理 → 分发
 
-**React 17+**：
-
-```
-事件 → root → React 事件代理 → 分发
+React 17+: 事件 → root → React 事件代理 → 分发
 ```
 
 ### 为什么改到 root？
@@ -1066,6 +1138,19 @@ function handleClick(e) {
 // native bubble
 // div bubble
 ```
+
+### 面试题速查
+
+| 问题 | 答案 |
+| --- | --- |
+| 为什么用合成事件？ | 1. 跨浏览器一致性 |
+| | 2. 事件委托减少监听器数量 |
+| | 3. 支持微前端隔离（17+ 改到 root） |
+| | 4. 自动绑定 this |
+| | 5. 事件池复用提升性能（17 前） |
+| 与原生事件区别？ | 合成事件是包装器，原生事件在 `e.nativeEvent` |
+| 17+ 为什么改到 root？ | 支持多 React 版本共存，不污染 document |
+| 事件委托原理？ | 所有事件绑定到 root，React 分发到具体元素 |
 
 ---
 
