@@ -17,14 +17,18 @@ export function useRequest<T>(
   requestFn: () => Promise<T>,
   options: UseRequestOptions<T> = {}
 ) {
-  const { manual = false, onSuccess, onError, onFinally } = options;
   const [state, setState] = useState<UseRequestState<T>>({
     data: null,
     loading: false,
     error: null,
   });
-  const mountedRef = useRef(true);
 
+  // 使用 ref 存储配置，避免依赖变化导致无限循环
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  // 追踪组件是否已卸载
+  const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -38,26 +42,26 @@ export function useRequest<T>(
       const result = await requestFn();
       if (mountedRef.current) {
         setState({ data: result, loading: false, error: null });
-        onSuccess?.(result);
+        optionsRef.current.onSuccess?.(result);
       }
     } catch (err) {
       if (mountedRef.current) {
         const error = err instanceof Error ? err : new Error('Unknown error');
         setState({ data: null, loading: false, error });
-        onError?.(error);
+        optionsRef.current.onError?.(error);
       }
     } finally {
       if (mountedRef.current) {
-        onFinally?.();
+        optionsRef.current.onFinally?.();
       }
     }
-  }, [requestFn, onSuccess, onError, onFinally]);
+  }, [requestFn]);
 
   useEffect(() => {
-    if (!manual) {
+    if (!optionsRef.current.manual) {
       execute();
     }
-  }, [manual, execute]);
+  }, [execute]);
 
   return { ...state, execute };
 }

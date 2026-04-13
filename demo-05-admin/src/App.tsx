@@ -301,11 +301,11 @@ function HooksDemo() {
   const [count, setCount] = useState(0);
   const [inputValue, setInputValue] = useState('');
 
-  // useRequest 示例
-  const fetchData = async () => {
+  // useRequest 示例 - 用 useCallback 缓存 fetchData，避免无限循环
+  const fetchData = useCallback(async () => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return { message: '数据获取成功', timestamp: Date.now() };
-  };
+  }, []);
 
   const { data, loading, error, execute } = useRequest(fetchData);
 
