@@ -1,6 +1,11 @@
-import React, { useState, useMemo, memo, useRef, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, memo, lazy, Suspense } from 'react';
 import { generateMockData, calculateStats } from './types/data';
 import { useVirtualScroll } from './hooks/useVirtualScroll';
+
+// 模拟异步加载的组件
+const LazyHeavyChart = lazy(() => import('./components/lazy/HeavyChart'));
+
+const LazyDataTable = lazy(() => import('./components/lazy/DataTable'));
 
 type Tab = 'virtual-list' | 'memo-demo' | 'lazy-loading' | 'context-opt';
 
@@ -252,61 +257,9 @@ function LazyLoadingDemo() {
       </div>
 
       <Suspense fallback={<div className="p-8 text-center text-gray-500">加载中...</div>}>
-        {showChart && <HeavyChart />}
-        {showTable && <DataTable />}
+        {showChart && <LazyHeavyChart />}
+        {showTable && <LazyDataTable />}
       </Suspense>
-    </div>
-  );
-}
-
-// 模拟重量级图表组件
-function HeavyChart() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.fillStyle = '#f3f4f6';
-    ctx.fillRect(0, 0, 400, 200);
-
-    ctx.fillStyle = '#7c3aed';
-    for (let i = 0; i < 20; i++) {
-      const x = i * 20 + 10;
-      const h = Math.random() * 150 + 20;
-      ctx.fillRect(x, 200 - h, 15, h);
-    }
-  }, []);
-
-  return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
-      <h3 className="text-lg font-semibold mb-4">重量级图表组件 (lazy loaded)</h3>
-      <canvas ref={canvasRef} width={400} height={200} className="border rounded" />
-    </div>
-  );
-}
-
-// 模拟数据表格组件
-function DataTable() {
-  const data = useMemo(() =>
-    Array.from({ length: 100 }, (_, i) => ({ id: i, value: Math.random() * 100 })),
-    []
-  );
-
-  return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
-      <h3 className="text-lg font-semibold mb-4">数据表格组件 (lazy loaded)</h3>
-      <div className="space-y-2 max-h-60 overflow-auto">
-        {data.slice(0, 20).map((row) => (
-          <div key={row.id} className="flex justify-between px-4 py-2 bg-white dark:bg-gray-700 rounded">
-            <span>ID: {row.id}</span>
-            <span>Value: {row.value.toFixed(2)}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
