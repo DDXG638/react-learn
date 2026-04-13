@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getProduct, getProductReviews } from '@/types';
+import { getProduct, getProductReviews, getProducts } from '@/types';
 import Image from 'next/image';
 import { ReviewList } from '@/components/ReviewList';
 
@@ -38,7 +38,8 @@ export default async function ProductDetailPage({ params }: Props) {
             alt={product.name}
             fill
             className="object-cover"
-            priority
+            loading="eager"
+            unoptimized
           />
         </div>
 

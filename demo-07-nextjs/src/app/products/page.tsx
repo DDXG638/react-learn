@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { getProducts, categories } from '@/types';
-import ProductGrid from '@/components/ProductGrid';
+import { ProductGrid } from '@/components/ProductCard';
 
 // SSR: 每次请求实时获取数据
 export const dynamic = 'force-dynamic';
