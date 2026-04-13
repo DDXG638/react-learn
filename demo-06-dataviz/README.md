@@ -84,6 +84,102 @@ function App() {
 
 **效果：** 代码分割，按需加载，不影响首屏性能。
 
+### 3.1 Suspense 实现原理
+
+**核心概念：Suspense 本质上是一个特殊的 Error Boundary**
+
+#### Suspense 不"感知"子组件，而是"捕获"挂起
+
+```
+React 渲染流程：
+组件 render →
+  如果需要等待 → 抛出 Promise（不是返回！）→
+  React 捕获这个 Promise →
+  显示 fallback
+```
+
+#### lazy() 的实现原理
+
+```tsx
+// React.lazy 的简化实现
+function lazy(fn) {
+  let error, result;
+  let promise = fn().then(
+    (m) => { result = m.default; error = null; },
+    (e) => { error = e; }
+  );
+
+  return function LazyComponent() {
+    if (error) throw error;      // 加载失败，抛出错误
+    if (result) return result;   // 加载成功，返回组件
+    throw promise;               // 加载中，抛出 Promise！
+  };
+}
+```
+
+#### Suspense 捕获机制
+
+```tsx
+// Suspense 内部简化逻辑
+function Suspense({ children, fallback }) {
+  try {
+    return children;  // 尝试渲染子组件
+  } catch (promise) {
+    // 如果子组件 throw 了 promise（不是 Error）
+    // React 识别出这是"挂起"而不是"错误"
+    if (isThenable(promise)) {
+      return fallback;  // 显示 fallback，等待 promise 解决
+    }
+    throw promise;  // 真正的 Error，继续抛出
+  }
+}
+```
+
+#### React.use() 的作用
+
+```tsx
+// React.use() 可以读取"挂起"的值
+function Child() {
+  const data = React.use(fetchDataPromise);  // 内部可能 throw promise
+
+  return <div>{data}</div>;
+}
+
+// 当 fetchDataPromise 未解决时：
+// - React.use() 抛出 promise
+// - Suspense 捕获，显示 fallback
+```
+
+#### 完整流程图
+
+```
+<App>
+  <Suspense fallback={<Loading />}>
+    <LazyComponent />  ← 初始 throw promise
+  </Suspense>
+</App>
+
+第一次渲染：
+1. LazyComponent render()
+2. 发现需要加载模块，throw promise
+3. Suspense 捕获 promise，显示 fallback
+4. Promise 解决，重新触发渲染
+5. LazyComponent 再次 render，这次返回组件
+
+第二次渲染（Promise 已解决）：
+1. LazyComponent render()
+2. 返回 JSX，Suspense 正常显示
+```
+
+#### 关键点
+
+| 问题 | 答案 |
+|------|------|
+| Suspense 如何感知？ | 不感知，只是 try/catch 捕获 throw |
+| 如何判断是挂起还是错误？ | Promise → fallback，Error → 抛出 |
+| React.use() 做了什么？ | 读取可能挂起的值，如果未解决则 throw |
+| 为什么能显示 fallback？ | Suspense 捕获了 throw 的 promise，显示 fallback 替代 |
+
 ### 4. Context 优化
 
 #### 问题
