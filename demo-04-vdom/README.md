@@ -1132,10 +1132,10 @@ React 17+: 事件 → root → React 事件代理 → 分发
 </div>
 
 // 输出顺序:
-// native capture
 // button capture
-// button bubble
+// native capture
 // native bubble
+// button bubble
 // div bubble
 ```
 
