@@ -5,6 +5,7 @@ import { useCartStore, mockProducts } from './stores/cartStore';
 import { useRequest } from './hooks/useRequest';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useDebounce } from './hooks/useDebounce';
+import { useThrottle } from './hooks/useThrottle';
 
 type Tab = 'users' | 'cart' | 'hooks' | 'theme' | 'imperative';
 
@@ -307,12 +308,19 @@ function HooksDemo() {
     return { message: '数据获取成功', timestamp: Date.now() };
   }, []);
 
-  const { data, loading, error, execute } = useRequest(fetchData);
+  const { data, loading, error, execute } = useRequest(fetchData, {
+    manual: false,
+    onSuccess() {
+      console.log('数据获取成功！！！')
+    },
+  });
 
   // useLocalStorage 示例
   const [storedValue, setStoredValue] = useLocalStorage('demo-05-value', 'Hello');
 
   const debouncedValue = useDebounce(inputValue, 300);
+
+  const throttleCount = useThrottle(count, 500)
 
   return (
     <div className="space-y-8">
@@ -393,7 +401,7 @@ function HooksDemo() {
           点击 ({count})
         </button>
         <p className="mt-4 text-gray-600 dark:text-gray-400 text-sm">
-          节流值: <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{count}</code>
+          节流值: <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{throttleCount}</code>
           - 连续点击不会立即更新
         </p>
       </section>
