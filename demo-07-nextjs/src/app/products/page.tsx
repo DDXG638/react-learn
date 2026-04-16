@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { getProducts, categories } from '@/types';
-import { ProductGrid } from '@/components/ProductCard';
+import { ProductLists } from '@/components/ProductLists';
 
 // SSR: 每次请求实时获取数据
 export const dynamic = 'force-dynamic';
@@ -14,10 +14,10 @@ export default async function ProductsPage({ searchParams }: Props) {
   const selectedCategory = params.category || '全部';
 
   // 服务端数据获取
-  const allProducts = await getProducts();
-  const products = selectedCategory === '全部'
-    ? allProducts
-    : allProducts.filter(p => p.category === selectedCategory);
+  // const allProducts = await getProducts();
+  // const products = selectedCategory === '全部'
+  //   ? allProducts
+  //   : allProducts.filter(p => p.category === selectedCategory);
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -57,19 +57,22 @@ export default async function ProductsPage({ searchParams }: Props) {
         </div>
         <p className="mt-3 text-sm text-gray-500">
           当前筛选：<span className="font-medium">{selectedCategory}</span>，
-          共 <span className="font-medium">{products.length}</span> 件商品
+          {/* 共 <span className="font-medium">{products.length}</span> 件商品 */}
         </p>
       </div>
 
       {/* 产品列表 */}
       <Suspense fallback={<div className="text-center py-12">加载中...</div>}>
-        {products.length > 0 ? (
+          {/* SSR首屏HTML是分块返回的，html文件的响应头中有 Transfer-Encoding: chunked */}
+          {/* 首屏HTML内容为 fallback，然后在同一个http请求中返回 ProductLists 内容块 */}
+          <ProductLists selectedCategory={selectedCategory} />
+        {/* {products.length > 0 ? (
           <ProductGrid products={products} />
         ) : (
           <div className="text-center py-12 text-gray-500">
             暂无商品
           </div>
-        )}
+        )} */}
       </Suspense>
 
       {/* 渲染模式说明 */}
