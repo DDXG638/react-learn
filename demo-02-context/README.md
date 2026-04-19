@@ -48,9 +48,82 @@ const themeValue = useMemo(() => ({
 </ThemeContext.Provider>
 
 // 解决方案4：使用选择器模式（zustand 的方式）
+// useContextSelector 只订阅需要的数据，精确控制重渲染
+const theme = useContextSelector(ThemeContext, (ctx) => ctx.theme);
+const userName = useContextSelector(UserContext, (ctx) => ctx.user.name);
 ```
 
-### Q2: Props drilling 是什么？如何解决？
+### Q2: 选择器模式的原理？
+
+**核心思想**：组件只订阅 Context 的部分数据，只有这部分数据变化时才重渲染。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Store { user: {name: 'Tom'}, theme: 'dark', count: 0 }    │
+└─────────────────────────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│ ThemeDisplay  │   │ UserNameDis   │   │ RawContext    │
+│ 只订阅 theme  │   │ 只订阅        │   │ useContext    │
+│               │   │ user.name     │   │ (全量订阅)    │
+│ 变化检测：    │   │ 变化检测：    │   │ 变化检测：    │
+│ theme !==     │   │ user.name !== │   │ 任何字段变化  │
+│ lastTheme    │   │ lastName      │   │              │
+└───────────────┘   └───────────────┘   └───────────────┘
+```
+
+**实现原理**：
+
+```tsx
+function useContextSelector<T, S>(
+  context: Context<T>,
+  selector: (value: T) => S,
+  equalityFn: (a: S, b: S) = Object.is
+): S {
+  const contextValue = useContext(context);      // 获取 Context 值
+  const subscriptionRef = useRef<Subscription>() // 存储订阅信息
+
+  // 1. 初始化订阅
+  if (!subscriptionRef.current) {
+    subscriptionRef.current = {
+      lastSelectedValue: selector(contextValue)  // 记录上次选择器的值
+    }
+  }
+
+  // 2. 用选择器计算当前值
+  const selectedValue = selector(contextValue)
+
+  // 3. 状态：用于触发重渲染
+  const [state, setState] = useState(() => selectedValue)
+
+  // 4. 核心：比较选择器计算出的值，只有变化才 setState
+  useEffect(() => {
+    const { lastSelectedValue } = subscriptionRef.current
+    if (!equalityFn(lastSelectedValue, selectedValue)) {
+      subscriptionRef.current.lastSelectedValue = selectedValue
+      setState(() => selectedValue)
+    }
+  }, [selectedValue])
+
+  return state
+}
+```
+
+**与 Zustand 的关系**：
+- Zustand 内部实现类似的选择器订阅机制
+- 每个组件 `useStore(selector)` 只订阅需要的状态切片
+- 状态变化时，只通知值变化的组件重渲染
+
+**为什么能优化**：
+
+| 方式 | 变化检测粒度 | 重渲染范围 |
+|------|-------------|-----------|
+| 普通 useContext | 整个 value 对象 | 所有消费者 |
+| 选择器模式 | 选择器计算后的值 | 只有该值变化的组件 |
+
+### Q3: Props drilling 是什么？如何解决？
 
 Props drilling（属性穿透）是指数据从顶层组件传递到深层嵌套组件时，需要经过多个中间组件，但这些中间组件本身并不需要这些数据。
 
@@ -81,7 +154,10 @@ const UserContext = createContext(user);
 src/
 ├── contexts/
 │   ├── ThemeContext.tsx     # 主题 Context（演示 Context 基本用法）
-│   └── AuthContext.tsx      # 权限 Context（演示权限管理）
+│   ├── AuthContext.tsx      # 权限 Context（演示权限管理）
+│   └── SelectorStore.tsx   # 选择器模式演示（模拟 Zustand Store）
+├── hooks/
+│   └── useContextSelector.ts # 选择器 Hook 实现
 ├── components/
 │   ├── Menu/
 │   │   ├── MenuItem.tsx     # 菜单项组件（Props 传递）
@@ -117,4 +193,4 @@ pnpm dev
 
 1. 实现一个 `useUser` Hook 来消费 AuthContext
 2. 将 Menu 改造成使用 Context 避免 Props drilling
-3. 实现一个 `useContextSelector` 实现选择器模式
+3. 尝试实现带 `equalityFn` 参数的 `useContextSelector`，支持深比较

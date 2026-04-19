@@ -6,6 +6,7 @@ import { Layout } from './components/Layout/Layout';
 import { UserInfo } from './components/UserInfo';
 import { Login } from './components/Login';
 import { ThemeToggle } from './components/ThemeToggle';
+import SelectorDemo from './contexts/SelectorStore';
 import type { MenuItem } from './types';
 import './App.css';
 
@@ -110,6 +111,14 @@ function AppContent() {
                   <h4>右侧菜单：Context 解决方案</h4>
                   <p>使用 useContext 直接获取用户信息，无需层层传递 props。</p>
                   <p>切换用户角色，观察两个菜单的权限过滤效果。</p>
+                </div>
+                <div className="demo-section">
+                  <h4>选择器模式演示（Context 性能优化）</h4>
+                  <p>打开控制台，观察不同状态变化时组件的重渲染范围。</p>
+                  <details>
+                    <summary>点击展开选择器模式演示</summary>
+                    <SelectorDemo />
+                  </details>
                 </div>
               </div>
             </div>
